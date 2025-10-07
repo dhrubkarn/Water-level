@@ -96,7 +96,6 @@
     }
 
     .low { background: #ef5350; }
-    .medium { background: #ffca28; color: #333; }
     .high { background: #43a047; }
 
     footer {
@@ -134,9 +133,8 @@
   <footer>Made with ❤️ using ThingSpeak & ESP8266 | © 2025</footer>
 
   <script>
-    const channelID = "3099518";
-    const field = "1";
-    const apiURL = `https://api.thingspeak.com/channels/${channelID}/fields/${field}.json?results=10`;
+    const channelID = "3099518"; // replace with your ThingSpeak channel ID
+    const apiURL = `https://api.thingspeak.com/channels/3099518/feeds.json?api_key=0VNCAOTVIU5USW7Q&results=2`;
 
     const ctx = document.getElementById('levelChart').getContext('2d');
     const chart = new Chart(ctx, {
@@ -158,8 +156,8 @@
         scales: {
           y: {
             beginAtZero: true,
-            suggestedMax: 3,
-            title: { display: true, text: 'Level (1 = Low, 3 = High)' },
+            suggestedMax: 1,
+            title: { display: true, text: 'Water Detection' },
             ticks: { stepSize: 1 }
           },
           x: {
@@ -178,12 +176,12 @@
 
         if (feeds.length > 0) {
           const latest = feeds[feeds.length - 1];
-          const level = parseInt(latest.field1);
+          const level = parseInt(latest.field1); // fetch sensor value
           updateTank(level);
 
           // Update chart
           chart.data.labels = feeds.map(f => new Date(f.created_at).toLocaleTimeString());
-          chart.data.datasets[0].data = feeds.map(f => parseInt(f.field1));
+          chart.data.datasets[0].data = feeds.map(f => parseInt(f.field1) > 0 ? 1 : 0);
           chart.update();
 
           document.getElementById("timestamp").innerText =
@@ -191,6 +189,7 @@
         }
       } catch (err) {
         document.getElementById("status").innerText = "Error fetching data";
+        document.getElementById("alertBox").innerText = "❌ Could not fetch data";
       }
     }
 
@@ -199,33 +198,21 @@
       const status = document.getElementById("status");
       const alertBox = document.getElementById("alertBox");
 
-      let height = "0%";
       alertBox.className = "alert"; // reset classes
 
-      if (level === 1) {
-        height = "25%";
-        status.innerText = "Low Water (Empty)";
+      if (!level || level <= 100) {  // threshold for no water
+        waterDiv.style.height = "0%";
         waterDiv.style.background = "linear-gradient(to top, #ef5350, #e57373)";
-        alertBox.innerText = "⚠️ Low Water! Please Refill";
+        status.innerText = "No Water Detected";
+        alertBox.innerText = "⚠️ No Water!";
         alertBox.classList.add("low");
-      } else if (level === 2) {
-        height = "60%";
-        status.innerText = "Medium Water Level";
-        waterDiv.style.background = "linear-gradient(to top, #ffca28, #fff176)";
-        alertBox.innerText = "ℹ️ Water Level Normal";
-        alertBox.classList.add("medium");
-      } else if (level === 3) {
-        height = "100%";
-        status.innerText = "High Water Level (FULL)";
-        waterDiv.style.background = "linear-gradient(to top, #2196F3, #64b5f6)";
-        alertBox.innerText = "✅ Tank is Full!";
-        alertBox.classList.add("high");
       } else {
-        status.innerText = "No Data";
-        alertBox.innerText = "❌ No Sensor Data";
+        waterDiv.style.height = "100%";
+        waterDiv.style.background = "linear-gradient(to top, #2196F3, #64b5f6)";
+        status.innerText = "Water Detected";
+        alertBox.innerText = "💧 Water Present";
+        alertBox.classList.add("high");
       }
-
-      waterDiv.style.height = height;
     }
 
     fetchData();
