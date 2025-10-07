@@ -200,7 +200,7 @@
 
       alertBox.className = "alert"; // reset classes
 
-      if (!level || level <= 100) {  // threshold for no water
+      if (!level || level <= 1) {  // threshold for no water
         waterDiv.style.height = "0%";
         waterDiv.style.background = "linear-gradient(to top, #ef5350, #e57373)";
         status.innerText = "No Water Detected";
@@ -221,3 +221,4 @@
 
 </body>
 </html>
+
