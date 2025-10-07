@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Water Tank Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: "Poppins", sans-serif;
+      margin: 0;
+      background: linear-gradient(135deg, #bbdefb, #e3f2fd);
+      color: #0d47a1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    header {
+      background: #1565c0;
+      color: white;
+      width: 100%;
+      text-align: center;
+      padding: 15px 0;
+      font-size: 24px;
+      letter-spacing: 1px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .dashboard {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 20px;
+      width: 95%;
+      max-width: 950px;
+      margin-top: 25px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 15px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+      padding: 20px;
+      text-align: center;
+      width: 420px;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.25);
+    }
+
+    .tank {
+      width: 100px;
+      height: 220px;
+      border: 4px solid #333;
+      border-radius: 15px;
+      margin: 0 auto 15px;
+      position: relative;
+      background: #f5f5f5;
+      overflow: hidden;
+    }
+
+    .water {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      background: linear-gradient(to top, #2196F3, #64b5f6);
+      transition: height 1s ease-in-out;
+      border-radius: 0 0 15px 15px;
+    }
+
+    .label {
+      font-weight: bold;
+      font-size: 18px;
+      color: #0d47a1;
+      margin-top: 5px;
+    }
+
+    canvas {
+      margin-top: 10px;
+      max-height: 120px;
+    }
+
+    .alert {
+      font-size: 18px;
+      font-weight: bold;
+      padding: 12px;
+      border-radius: 10px;
+      color: white;
+      width: 80%;
+      margin: 15px auto;
+    }
+
+    .low { background: #ef5350; }
+    .medium { background: #ffca28; color: #333; }
+    .high { background: #43a047; }
+
+    footer {
+      margin-top: 25px;
+      color: #444;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>💧 Smart Water Tank Dashboard</header>
+
+  <div class="dashboard">
+
+    <!-- Water Level Card -->
+    <div class="card">
+      <h2>Water Tank</h2>
+      <div class="tank">
+        <div class="water" id="waterLevel" style="height:0%"></div>
+      </div>
+      <div class="label" id="status">Fetching data...</div>
+      <canvas id="levelChart" width="300" height="100"></canvas>
+    </div>
+
+    <!-- Alerts Card -->
+    <div class="card">
+      <h2>⚠️ Alerts</h2>
+      <div id="alertBox" class="alert">Checking water level...</div>
+      <p id="timestamp" style="margin-top:10px;color:#555;">Last updated: --</p>
+    </div>
+
+  </div>
+
+  <footer>Made with ❤️ using ThingSpeak & ESP8266 | © 2025</footer>
+
+  <script>
+    const channelID = "3099518";
+    const field = "1";
+    const apiURL = `https://api.thingspeak.com/channels/${channelID}/fields/${field}.json?results=10`;
+
+    const ctx = document.getElementById('levelChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Water Level History',
+          data: [],
+          borderColor: '#1976d2',
+          backgroundColor: 'rgba(25,118,210,0.2)',
+          tension: 0.4,
+          fill: true,
+          pointRadius: 3,
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          y: {
+            beginAtZero: true,
+            suggestedMax: 3,
+            title: { display: true, text: 'Level (1 = Low, 3 = High)' },
+            ticks: { stepSize: 1 }
+          },
+          x: {
+            title: { display: true, text: 'Time' },
+            ticks: { autoSkip: true, maxTicksLimit: 4 }
+          }
+        }
+      }
+    });
+
+    async function fetchData() {
+      try {
+        const res = await fetch(apiURL);
+        const data = await res.json();
+        const feeds = data.feeds;
+
+        if (feeds.length > 0) {
+          const latest = feeds[feeds.length - 1];
+          const level = parseInt(latest.field1);
+          updateTank(level);
+
+          // Update chart
+          chart.data.labels = feeds.map(f => new Date(f.created_at).toLocaleTimeString());
+          chart.data.datasets[0].data = feeds.map(f => parseInt(f.field1));
+          chart.update();
+
+          document.getElementById("timestamp").innerText =
+            "Last updated: " + new Date(latest.created_at).toLocaleTimeString();
+        }
+      } catch (err) {
+        document.getElementById("status").innerText = "Error fetching data";
+      }
+    }
+
+    function updateTank(level) {
+      const waterDiv = document.getElementById("waterLevel");
+      const status = document.getElementById("status");
+      const alertBox = document.getElementById("alertBox");
+
+      let height = "0%";
+      alertBox.className = "alert"; // reset classes
+
+      if (level === 1) {
+        height = "25%";
+        status.innerText = "Low Water (Empty)";
+        waterDiv.style.background = "linear-gradient(to top, #ef5350, #e57373)";
+        alertBox.innerText = "⚠️ Low Water! Please Refill";
+        alertBox.classList.add("low");
+      } else if (level === 2) {
+        height = "60%";
+        status.innerText = "Medium Water Level";
+        waterDiv.style.background = "linear-gradient(to top, #ffca28, #fff176)";
+        alertBox.innerText = "ℹ️ Water Level Normal";
+        alertBox.classList.add("medium");
+      } else if (level === 3) {
+        height = "100%";
+        status.innerText = "High Water Level (FULL)";
+        waterDiv.style.background = "linear-gradient(to top, #2196F3, #64b5f6)";
+        alertBox.innerText = "✅ Tank is Full!";
+        alertBox.classList.add("high");
+      } else {
+        status.innerText = "No Data";
+        alertBox.innerText = "❌ No Sensor Data";
+      }
+
+      waterDiv.style.height = height;
+    }
+
+    fetchData();
+    setInterval(fetchData, 20000);
+  </script>
+
+</body>
+</html>
