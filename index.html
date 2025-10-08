@@ -134,7 +134,7 @@
 
   <script>
     const channelID = "3099518"; // replace with your ThingSpeak channel ID
-    const apiURL = `https://api.thingspeak.com/channels/3099518/feeds.json?api_key=0VNCAOTVIU5USW7Q&results=2`;
+    const apiURL = `https://api.thingspeak.com/channels/${channelID}/feeds.json?api_key=0VNCAOTVIU5USW7Q&results=20`;
 
     const ctx = document.getElementById('levelChart').getContext('2d');
     const chart = new Chart(ctx, {
@@ -156,13 +156,13 @@
         scales: {
           y: {
             beginAtZero: true,
-            suggestedMax: 1,
-            title: { display: true, text: 'Water Detection' },
+            suggestedMax: 4,
+            title: { display: true, text: 'Water Level' },
             ticks: { stepSize: 1 }
           },
           x: {
             title: { display: true, text: 'Time' },
-            ticks: { autoSkip: true, maxTicksLimit: 4 }
+            ticks: { autoSkip: true, maxTicksLimit: 6 }
           }
         }
       }
@@ -176,13 +176,11 @@
 
         if (feeds.length > 0) {
           const latest = feeds[feeds.length - 1];
-          const level = parseInt(latest.field1); // fetch sensor value
-          updateTank(level);
+          const sensorValue = parseInt(latest.field1); // sensor value from ThingSpeak
+          const level = calculateLevel(sensorValue);
 
-          // Update chart
-          chart.data.labels = feeds.map(f => new Date(f.created_at).toLocaleTimeString());
-          chart.data.datasets[0].data = feeds.map(f => parseInt(f.field1) > 0 ? 1 : 0);
-          chart.update();
+          updateTank(level);
+          updateChart(feeds);
 
           document.getElementById("timestamp").innerText =
             "Last updated: " + new Date(latest.created_at).toLocaleTimeString();
@@ -193,6 +191,14 @@
       }
     }
 
+    function calculateLevel(sensorValue) {
+      if (sensorValue > 380) return 4;   // 100%
+      else if (sensorValue > 350) return 3; // 75%
+      else if (sensorValue > 310) return 2; // 50%
+      else if (sensorValue > 230) return 1; // 25%
+      else return 0;                        // No water
+    }
+
     function updateTank(level) {
       const waterDiv = document.getElementById("waterLevel");
       const status = document.getElementById("status");
@@ -200,27 +206,63 @@
 
       alertBox.className = "alert"; // reset classes
 
-      if (!level || level <= 249) {  // threshold for no water
-        waterDiv.style.height = "0%";
-        waterDiv.style.background = "linear-gradient(to top, #ef5350, #e57373)";
-        status.innerText = "No Water Detected";
-        alertBox.innerText = "⚠️ No Water!";
-        alertBox.classList.add("low");
-      } else {
-        waterDiv.style.height = "100%";
-        waterDiv.style.background = "linear-gradient(to top, #2196F3, #64b5f6)";
-        status.innerText = "Water Detected";
-        alertBox.innerText = "💧 Water Present";
-        alertBox.classList.add("high");
+      let height = 0;
+      let color = "linear-gradient(to top, #ef5350, #e57373)";
+      let statusText = "No Water Detected";
+      let alertText = "⚠️ No Water!";
+
+      switch(level) {
+        case 4:
+          height = 100;
+          color = "linear-gradient(to top, #2196F3, #64b5f6)";
+          statusText = "Water Level: 100%";
+          alertText = "💧 Tank Full!";
+          alertBox.classList.add("high");
+          break;
+        case 3:
+          height = 75;
+          color = "linear-gradient(to top, #2196F3, #64b5f6)";
+          statusText = "Water Level: 75%";
+          alertText = "💧 Water Detected";
+          alertBox.classList.add("high");
+          break;
+        case 2:
+          height = 50;
+          color = "linear-gradient(to top, #2196F3, #64b5f6)";
+          statusText = "Water Level: 50%";
+          alertText = "💧 Water Detected";
+          alertBox.classList.add("high");
+          break;
+        case 1:
+          height = 25;
+          color = "linear-gradient(to top, #2196F3, #64b5f6)";
+          statusText = "Water Level: 25%";
+          alertText = "💧 Water Detected";
+          alertBox.classList.add("high");
+          break;
+        default:
+          height = 0;
+          color = "linear-gradient(to top, #ef5350, #e57373)";
+          statusText = "No Water Detected";
+          alertText = "⚠️ No Water!";
+          alertBox.classList.add("low");
       }
+
+      waterDiv.style.height = height + "%";
+      waterDiv.style.background = color;
+      status.innerText = statusText;
+      alertBox.innerText = alertText;
+    }
+
+    function updateChart(feeds) {
+      chart.data.labels = feeds.map(f => new Date(f.created_at).toLocaleTimeString());
+      chart.data.datasets[0].data = feeds.map(f => calculateLevel(parseInt(f.field1)));
+      chart.update();
     }
 
     fetchData();
-    setInterval(fetchData, 20000);
+    setInterval(fetchData, 20000); // update every 20 sec
   </script>
 
 </body>
 </html>
-
-
-
